@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timetabling App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7/babel.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useReducer, useState } = React;
+
+    // Reducer for managing app state
+    const initialState = {
+      courses: [],
+      teachers: [],
+      rooms: [],
+      timetable: [],
+    };
+
+    function reducer(state, action) {
+      switch (action.type) {
+        case 'ADD_COURSE':
+          return { ...state, courses: [...state.courses, action.payload] };
+        case 'DELETE_COURSE':
+          return { ...state, courses: state.courses.filter(c => c !== action.payload) };
+        case 'ADD_TEACHER':
+          return { ...state, teachers: [...state.teachers, action.payload] };
+        case 'DELETE_TEACHER':
+          return { ...state, teachers: state.teachers.filter(t => t !== action.payload) };
+        case 'ADD_ROOM':
+          return { ...state, rooms: [...state.rooms, action.payload] };
+        case 'DELETE_ROOM':
+          return { ...state, rooms: state.rooms.filter(r => r !== action.payload) };
+        case 'ADD_TIMETABLE_ENTRY':
+          return { ...state, timetable: [...state.timetable, action.payload] };
+        case 'DELETE_TIMETABLE_ENTRY':
+          return { ...state, timetable: state.timetable.filter((_, i) => i !== action.payload) };
+        case 'UPDATE_TIMETABLE_ENTRY':
+          return {
+            ...state,
+            timetable: state.timetable.map((entry, i) =>
+              i === action.payload.index ? action.payload.entry : entry
+            ),
+          };
+        default:
+          return state;
+      }
+    }
+
+    // Main App Component
+    function App() {
+      const [state, dispatch] = useReducer(reducer, initialState);
+      const [filterDay, setFilterDay] = useState('');
+
+      // Helper to detect clashes
+      const detectClashes = (entry, index) => {
+        const teacherClash = state.timetable.some(
+          (e, i) =>
+            i !== index &&
+            e.day === entry.day &&
+            e.period === entry.period &&
+            e.teacher === entry.teacher
+        );
+        const roomClash = state.timetable.some(
+          (e, i) =>
+            i !== index &&
+            e.day === entry.day &&
+            e.period === entry.period &&
+            e.room === entry.room
+        );
+        return { teacherClash, roomClash };
+      };
+
+      return (
+        <div className="container mx-auto p-4 max-w-7xl">
+          <h1 className="text-3xl font-bold mb-6 text-center">Timetabling App</h1>
+
+          {/* Data Management Section */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <DataManagement
+              title="Courses"
+              items={state.courses}
+              onAdd={(item) => dispatch({ type: 'ADD_COURSE', payload: item })}
+              onDelete={(item) => dispatch({ type: 'DELETE_COURSE', payload: item })}
+            />
+            <DataManagement
+              title="Teachers"
+              items={state.teachers}
+              onAdd={(item) => dispatch({ type: 'ADD_TEACHER', payload: item })}
+              onDelete={(item) => dispatch({ type: 'DELETE_TEACHER', payload: item })}
+            />
+            <DataManagement
+              title="Rooms"
+              items={state.rooms}
+              onAdd={(item) => dispatch({ type: 'ADD_ROOM', payload: item })}
+              onDelete={(item) => dispatch({ type: 'DELETE_ROOM', payload: item })}
+            />
+          </div>
+
+          {/* Timetable Entry Form */}
+          <TimetableForm
+            courses={state.courses}
+            teachers={state.teachers}
+            rooms={state.rooms}
+            onSubmit={(entry) => dispatch({ type: 'ADD_TIMETABLE_ENTRY', payload: entry })}
+          />
+
+          {/* Filter */}
+          <div className="my-6">
+            <label className="mr-2">Filter by Day:</label>
+            <select
+              value={filterDay}
+              onChange={(e) => setFilterDay(e.target.value)}
+              className="p-2 border rounded"
+            >
+              <option value="">All Days</option>
+              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day) => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Timetable Display */}
+          <TimetableDisplay
+            timetable={state.timetable.filter(
+              (entry) => !filterDay || entry.day === filterDay
+            )}
+            detectClashes={detectClashes}
+            onDelete={(index) => dispatch({ type: 'DELETE_TIMETABLE_ENTRY', payload: index })}
+            onEdit={(index, entry) =>
+              dispatch({ type: 'UPDATE_TIMETABLE_ENTRY', payload: { index, entry } })
+            }
+            courses={state.courses}
+            teachers={state.teachers}
+            rooms={state.rooms}
+          />
+        </div>
+      );
+    }
+
+    // Data Management Component
+    function DataManagement({ title, items, onAdd, onDelete }) {
+      const [input, setInput] = useState('');
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (input.trim() && !items.includes(input.trim())) {
+          onAdd(input.trim());
+          setInput('');
+        }
+      };
+
+      return (
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-4">{title}</h2>
+          <div onSubmit={handleSubmit} className="flex mb-4">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={`Add ${title.toLowerCase()}...`}
+              className="flex-1 p-2 border rounded-l"
+            />
+            <button
+              onClick={handleSubmit}
+              className="bg-blue-500 text-white p-2 rounded-r hover:bg-blue-600"
+            >
+              Add
+            </button>
+          </div>
+          <ul className="max-h-40 overflow-y-auto">
+            {items.map((item) => (
+              <li key={item} className="flex justify-between items-center py-1">
+                <span>{item}</span>
+                <button
+                  onClick={() => onDelete(item)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+
+    // Timetable Form Component
+    function TimetableForm({ courses, teachers, rooms, onSubmit }) {
+      const [form, setForm] = useState({
+        day: 'Monday',
+        period: '1',
+        course: '',
+        teacher: '',
+        room: '',
+      });
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (form.course && form.teacher && form.room) {
+          onSubmit(form);
+          setForm({ day: 'Monday', period: '1', course: '', teacher: '', room: '' });
+        }
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 className="text-xl font-semibold mb-4">Add Timetable Entry</h2>
+          <div onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <select
+              value={form.day}
+              onChange={(e) => setForm({ ...form, day: e.target.value })}
+              className="p-2 border rounded"
+            >
+              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day) => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+            <select
+              value={form.period}
+              onChange={(e) => setForm({ ...form, period: e.target.value })}
+              className="p-2 border rounded"
+            >
+              {[1, 2, 3, 4, 5, 6].map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <select
+              value={form.course}
+              onChange={(e) => setForm({ ...form, course: e.target.value })}
+              className="p-2 border rounded"
+            >
+              <option value="">Select Course</option>
+              {courses.map((course) => (
+                <option key={course} value={course}>{course}</option>
+              ))}
+            </select>
+            <select
+              value={form.teacher}
+              onChange={(e) => setForm({ ...form, teacher: e.target.value })}
+              className="p-2 border rounded"
+            >
+              <option value="">Select Teacher</option>
+              {teachers.map((teacher) => (
+                <option key={teacher} value={teacher}>{teacher}</option>
+              ))}
+            </select>
+            <select
+              value={form.room}
+              onChange={(e) => setForm({ ...form, room: e.target.value })}
+              className="p-2 border rounded"
+            >
+              <option value="">Select Room</option>
+              {rooms.map((room) => (
+                <option key={room} value={room}>{room}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleSubmit}
+              className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 col-span-1 sm:col-span-2"
+            >
+              Add to Timetable
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Timetable Display Component
+    function TimetableDisplay({ timetable, detectClashes, onDelete, onEdit, courses, teachers, rooms }) {
+      const [editingIndex, setEditingIndex] = useState(null);
+      const [editForm, setEditForm] = useState(null);
+
+      const handleEdit = (index, entry) => {
+        setEditingIndex(index);
+        setEditForm({ ...entry });
+      };
+
+      const handleSaveEdit = () => {
+        if (editForm.course && editForm.teacher && editForm.room) {
+          onEdit(editingIndex, editForm);
+          setEditingIndex(null);
+          setEditForm(null);
+        }
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold mb-4">Timetable</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-200">
+                  <th className="p-2">Day</th>
+                  <th className="p-2">Period</th>
+                  <th className="p-2">Course</th>
+                  <th className="p-2">Teacher</th>
+                  <th className="p-2">Room</th>
+                  <th className="p-2">Teacher Clash</th>
+                  <th className="p-2">Room Clash</th>
+                  <th className="p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timetable.map((entry, index) => {
+                  const { teacherClash, roomClash } = detectClashes(entry, index);
+                  return (
+                    <tr
+                      key={index}
+                      className={(teacherClash || roomClash) ? 'bg-red-100' : ''}
+                    >
+                      {editingIndex === index ? (
+                        <>
+                          <td className="p-2">
+                            <select
+                              value={editForm.day}
+                              onChange={(e) => setEditForm({ ...editForm, day: e.target.value })}
+                              className="p-1 border rounded"
+                            >
+                              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day) => (
+                                <option key={day} value={day}>{day}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="p-2">
+                            <select
+                              value={editForm.period}
+                              onChange={(e) => setEditForm({ ...editForm, period: e.target.value })}
+                              className="p-1 border rounded"
+                            >
+                              {[1, 2, 3, 4, 5, 6].map((p) => (
+                                <option key={p} value={p}>{p}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="p-2">
+                            <select
+                              value={editForm.course}
+                              onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}
+                              className="p-1 border rounded"
+                            >
+                              <option value="">Select Course</option>
+                              {courses.map((course) => (
+                                <option key={course} value={course}>{course}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="p-2">
+                            <select
+                              value={editForm.teacher}
+                              onChange={(e) => setEditForm({ ...editForm, teacher: e.target.value })}
+                              className="p-1 border rounded"
+                            >
+                              <option value="">Select Teacher</option>
+                              {teachers.map((teacher) => (
+                                <option key={teacher} value={teacher}>{teacher}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="p-2">
+                            <select
+                              value={editForm.room}
+                              onChange={(e) => setEditForm({ ...editForm, room: e.target.value })}
+                              className="p-1 border rounded"
+                            >
+                              <option value="">Select Room</option>
+                              {rooms.map((room) => (
+                                <option key={room} value={room}>{room}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="p-2" colSpan="2">
+                            <button
+                              onClick={handleSaveEdit}
+                              className="bg-green-500 text-white px-2 py-1 rounded mr-2"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingIndex(null)}
+                              className="bg-gray-500 text-white px-2 py-1 rounded"
+                            >
+                              Cancel
+                            </button>
+                          </td>
+                          <td></td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="p-2">{entry.day}</td>
+                          <td className="p-2">{entry.period}</td>
+                          <td className="p-2">{entry.course}</td>
+                          <td className="p-2">{entry.teacher}</td>
+                          <td className="p-2">{entry.room}</td>
+                          <td className="p-2">
+                            {teacherClash ? <span className="text-red-500">❌ Clash</span> : '-'}
+                          </td>
+                          <td className="p-2">
+                            {roomClash ? <span className="text-red-500">❌ Clash</span> : '-'}
+                          </td>
+                          <td className="p-2">
+                            <button
+                              onClick={() => handleEdit(index, entry)}
+                              className="bg-yellow-500 text-white px-2 py-1 rounded mr-2"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => onDelete(index)}
+                              className="bg-red-500 text-white px-2 py-1 rounded"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // Render the app
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
